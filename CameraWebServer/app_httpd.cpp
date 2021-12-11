@@ -22,6 +22,8 @@
 #include "fd_forward.h"
 #include "fr_forward.h"
 
+#include "robot_pins.h"
+
 #define ENROLL_CONFIRM_TIMES 5
 #define FACE_ID_SAVE_NUMBER 7
 
@@ -59,6 +61,7 @@ httpd_handle_t camera_httpd = NULL;
 static mtmn_config_t mtmn_config = {0};
 static int8_t detection_enabled = 0;
 static int8_t recognition_enabled = 0;
+static int8_t flash_enabled = 0;  //LED Flash Light
 static int8_t is_enrolling = 0;
 static face_id_list id_list = {0};
 
@@ -404,14 +407,14 @@ static esp_err_t stream_handler(httpd_req_t *req){
             }
         }
         if(res == ESP_OK){
-            res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
-        }
-        if(res == ESP_OK){
             size_t hlen = snprintf((char *)part_buf, 64, _STREAM_PART, _jpg_buf_len);
             res = httpd_resp_send_chunk(req, (const char *)part_buf, hlen);
         }
         if(res == ESP_OK){
             res = httpd_resp_send_chunk(req, (const char *)_jpg_buf, _jpg_buf_len);
+        }
+        if(res == ESP_OK){
+            res = httpd_resp_send_chunk(req, _STREAM_BOUNDARY, strlen(_STREAM_BOUNDARY));
         }
         if(fb){
             esp_camera_fb_return(fb);
@@ -524,6 +527,53 @@ static esp_err_t cmd_handler(httpd_req_t *req){
             detection_enabled = val;
         }
     }
+    //Flash Light Action
+    else if(!strcmp(variable, "flash_enabled")) {
+      flash_enabled = val;
+      if(flash_enabled){
+        Serial.println("[FLASH] ON");
+        digitalWrite(FLASH_GPIO_NUM, HIGH);
+      } else{
+        Serial.println("[FLASH] OFF");
+        digitalWrite(FLASH_GPIO_NUM, LOW);
+      }
+    }
+    //CAM Robot Actions
+    else if(!strcmp(variable, "forward")) {
+      Serial.println("[Motor] FORWARD");
+      digitalWrite(MOTOR_A1, HIGH); //RIGHT
+      digitalWrite(MOTOR_A2, LOW);
+      digitalWrite(MOTOR_B1, HIGH); //LEFT
+      digitalWrite(MOTOR_B2, LOW);
+    }
+    else if(!strcmp(variable, "turnLeft")) {
+      Serial.println("[Motor] LEFT");
+      digitalWrite(MOTOR_A1, HIGH); //RIGHT
+      digitalWrite(MOTOR_A2, LOW);
+      digitalWrite(MOTOR_B1, LOW);  //LEFT
+      digitalWrite(MOTOR_B2, HIGH);
+    }
+    else if(!strcmp(variable, "stop")) {
+      Serial.println("[Motor] STOP");
+      digitalWrite(MOTOR_A1, LOW);  //RIGHT
+      digitalWrite(MOTOR_A2, LOW);
+      digitalWrite(MOTOR_B1, LOW);  //LEFT
+      digitalWrite(MOTOR_B2, LOW);
+    }
+    else if(!strcmp(variable, "turnRight")) {
+      Serial.println("[Motor] RIGHT");
+      digitalWrite(MOTOR_A1, LOW);   //RIGHT
+      digitalWrite(MOTOR_A2, HIGH);
+      digitalWrite(MOTOR_B1, HIGH);  //LEFT
+      digitalWrite(MOTOR_B2, LOW);
+    }
+    else if(!strcmp(variable, "backward")) {
+      Serial.println("[Motor] BACK");
+      digitalWrite(MOTOR_A1, LOW);   //RIGHT
+      digitalWrite(MOTOR_A2, HIGH);
+      digitalWrite(MOTOR_B1, LOW);   //LEFT
+      digitalWrite(MOTOR_B2, HIGH);
+    }
     else {
         res = -1;
     }
@@ -571,6 +621,7 @@ static esp_err_t status_handler(httpd_req_t *req){
     p+=sprintf(p, "\"face_detect\":%u,", detection_enabled);
     p+=sprintf(p, "\"face_enroll\":%u,", is_enrolling);
     p+=sprintf(p, "\"face_recognize\":%u", recognition_enabled);
+    p+=sprintf(p, "\"flash_enabled\":%u", flash_enabled);
     *p++ = '}';
     *p++ = 0;
     httpd_resp_set_type(req, "application/json");
@@ -581,10 +632,13 @@ static esp_err_t status_handler(httpd_req_t *req){
 static esp_err_t index_handler(httpd_req_t *req){
     httpd_resp_set_type(req, "text/html");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
-    sensor_t * s = esp_camera_sensor_get();
-    if (s->id.PID == OV3660_PID) {
-        return httpd_resp_send(req, (const char *)index_ov3660_html_gz, index_ov3660_html_gz_len);
-    }
+
+//    sensor_t * s = esp_camera_sensor_get();
+//    if (s->id.PID == OV3660_PID) {
+//        return httpd_resp_send(req, (const char *)index_ov3660_html_gz, index_ov3660_html_gz_len);
+//   }
+
+    //ESP32-CAM Camera Model
     return httpd_resp_send(req, (const char *)index_ov2640_html_gz, index_ov2640_html_gz_len);
 }
 
