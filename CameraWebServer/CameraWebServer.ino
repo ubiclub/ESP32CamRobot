@@ -2,25 +2,28 @@
 #include <WiFi.h>
 
 //
-// WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
-//            Ensure ESP32 Wrover Module or other board with PSRAM is selected
-//            Partial images will be transmitted if image exceeds buffer size
+// WARNING!!! Make sure that you have either selected ESP32 Wrover Module,
+//            or another board which has PSRAM enabled
 //
 
 // Select camera model
-#define CAMERA_MODEL_WROVER_KIT // Has PSRAM
-//#define CAMERA_MODEL_ESP_EYE // Has PSRAM
-//#define CAMERA_MODEL_M5STACK_PSRAM // Has PSRAM
-//#define CAMERA_MODEL_M5STACK_V2_PSRAM // M5Camera version B Has PSRAM
-//#define CAMERA_MODEL_M5STACK_WIDE // Has PSRAM
-//#define CAMERA_MODEL_M5STACK_ESP32CAM // No PSRAM
-//#define CAMERA_MODEL_AI_THINKER // Has PSRAM
-//#define CAMERA_MODEL_TTGO_T_JOURNAL // No PSRAM
+//#define CAMERA_MODEL_WROVER_KIT
+//#define CAMERA_MODEL_ESP_EYE
+//#define CAMERA_MODEL_M5STACK_PSRAM
+//#define CAMERA_MODEL_M5STACK_WIDE
+#define CAMERA_MODEL_AI_THINKER
 
 #include "camera_pins.h"
+#include "robot_pins.h"
 
-const char* ssid = "*********";
-const char* password = "*********";
+//const char* ssid = "uislab003";
+//const char* password = "nihao12345";
+
+//ESP32 SoftAP Configration
+const char ssid[] = "ESP32-Robot";
+const char pass[] = "nihao12345";
+const IPAddress ip(192,168,0,12);
+const IPAddress subnet(255,255,255,0);
 
 void startCameraServer();
 
@@ -50,9 +53,7 @@ void setup() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  
-  // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
-  //                      for larger pre-allocated frame buffer.
+  //init with high specs to pre-allocate larger buffers
   if(psramFound()){
     config.frame_size = FRAMESIZE_UXGA;
     config.jpeg_quality = 10;
@@ -76,34 +77,60 @@ void setup() {
   }
 
   sensor_t * s = esp_camera_sensor_get();
-  // initial sensors are flipped vertically and colors are a bit saturated
+  //initial sensors are flipped vertically and colors are a bit saturated
   if (s->id.PID == OV3660_PID) {
-    s->set_vflip(s, 1); // flip it back
-    s->set_brightness(s, 1); // up the brightness just a bit
-    s->set_saturation(s, -2); // lower the saturation
+    s->set_vflip(s, 1);//flip it back
+    s->set_brightness(s, 1);//up the blightness just a bit
+    s->set_saturation(s, -2);//lower the saturation
   }
-  // drop down frame size for higher initial frame rate
+  //drop down frame size for higher initial frame rate
   s->set_framesize(s, FRAMESIZE_QVGA);
 
-#if defined(CAMERA_MODEL_M5STACK_WIDE) || defined(CAMERA_MODEL_M5STACK_ESP32CAM)
+#if defined(CAMERA_MODEL_M5STACK_WIDE)
   s->set_vflip(s, 1);
   s->set_hmirror(s, 1);
 #endif
 
-  WiFi.begin(ssid, password);
+  //SoftAP
+  WiFi.softAP(ssid,pass);
+  delay(100);
+  WiFi.softAPConfig(ip,ip,subnet);
+  IPAddress myIP = WiFi.softAPIP();
 
+/*
+  WiFi.begin(ssid, password);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
   Serial.println("");
   Serial.println("WiFi connected");
+*/
+
+  Serial.println("ESP32 SoftAP Mode start.");
+  Serial.print("SSID:");
+  Serial.println(ssid);
 
   startCameraServer();
 
   Serial.print("Camera Ready! Use 'http://");
-  Serial.print(WiFi.localIP());
+  //Serial.print(WiFi.localIP());
+  Serial.print(myIP);
   Serial.println("' to connect");
+
+  pinMode(FLASH_GPIO_NUM, OUTPUT);
+  pinMode(MOTOR_A1, OUTPUT);
+  pinMode(MOTOR_A2, OUTPUT);
+  pinMode(MOTOR_B1, OUTPUT);
+  pinMode(MOTOR_B2, OUTPUT);
+
+  digitalWrite(FLASH_GPIO_NUM, HIGH);
+  delay(300);
+  digitalWrite(FLASH_GPIO_NUM, LOW);
+  delay(300);
+  digitalWrite(FLASH_GPIO_NUM, HIGH);
+  delay(300);
+  digitalWrite(FLASH_GPIO_NUM, LOW);
 }
 
 void loop() {
